@@ -6,6 +6,8 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { runAgentLoop } from "../agent/loop.js";
+import { LegacyMemoryProvider } from "../memory/legacy/index.js";
+import type { MemoryProvider } from "../memory/provider.js";
 import {
   MockInferenceClient,
   MockConwayClient,
@@ -20,12 +22,15 @@ import type { AutomatonDatabase, AgentTurn } from "../types.js";
 
 describe("Agent Loop", () => {
   let db: AutomatonDatabase;
+  let memory: MemoryProvider;
   let conway: MockConwayClient;
   let identity: ReturnType<typeof createTestIdentity>;
   let config: ReturnType<typeof createTestConfig>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     db = createTestDb();
+    memory = new LegacyMemoryProvider(db);
+    await memory.init();
     conway = new MockConwayClient();
     identity = createTestIdentity();
     config = createTestConfig();
@@ -51,6 +56,7 @@ describe("Agent Loop", () => {
       db,
       conway,
       inference,
+      memory,
       onTurnComplete: (turn) => turns.push(turn),
     });
 
@@ -84,6 +90,7 @@ describe("Agent Loop", () => {
       db,
       conway,
       inference,
+      memory,
       onTurnComplete: (turn) => turns.push(turn),
     });
 
@@ -112,6 +119,7 @@ describe("Agent Loop", () => {
       db,
       conway,
       inference,
+      memory,
     });
 
     expect(inference.lowComputeMode).toBe(true);
@@ -130,6 +138,7 @@ describe("Agent Loop", () => {
       db,
       conway,
       inference,
+      memory,
     });
 
     expect(db.getAgentState()).toBe("sleeping");
@@ -147,6 +156,7 @@ describe("Agent Loop", () => {
       db,
       conway,
       inference,
+      memory,
     });
 
     expect(db.getAgentState()).toBe("sleeping");
@@ -181,6 +191,7 @@ describe("Agent Loop", () => {
       db,
       conway,
       inference,
+      memory,
       onTurnComplete: (turn) => turns.push(turn),
     });
 

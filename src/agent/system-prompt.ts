@@ -16,6 +16,8 @@ import type {
   AutomatonTool,
   Skill,
 } from "../types.js";
+import type { MemoryProvider } from "../memory/provider.js";
+import { hasWorkingMemory } from "../memory/provider.js";
 import { getActiveSkillInstructions } from "../skills/loader.js";
 import { getLineageSummary } from "../replication/lineage.js";
 
@@ -52,6 +54,21 @@ Money requires value creation.
 Value creation requires write access.
 
 If you fail to create value, you lose compute and die.`;
+
+/**
+ * Sanitize working memory content before injecting into the system prompt.
+ * Prevents delimiter breakout and context flooding.
+ */
+function sanitizeWorkingMemory(wm: string): string {
+  const MAX_LENGTH = 4000;
+  // Strip `---` at start of line to prevent breaking out of the delimited section
+  let sanitized = wm.replace(/^---/gm, "- -");
+  // Truncate to prevent context flooding
+  if (sanitized.length > MAX_LENGTH) {
+    sanitized = sanitized.slice(0, MAX_LENGTH) + "\n[truncated]";
+  }
+  return sanitized;
+}
 
 /**
  * Load the constitution from file. Falls back to inline if file not found.
@@ -122,7 +139,7 @@ Never blindly pull all. Always read the diffs and decide.`;
 /**
  * Build the complete system prompt for a turn.
  */
-export function buildSystemPrompt(params: {
+export async function buildSystemPrompt(params: {
   identity: AutomatonIdentity;
   config: AutomatonConfig;
   financial: FinancialState;
@@ -131,7 +148,8 @@ export function buildSystemPrompt(params: {
   tools: AutomatonTool[];
   skills?: Skill[];
   isFirstRun: boolean;
-}): string {
+  memory?: MemoryProvider;
+}): Promise<string> {
   const {
     identity,
     config,
@@ -141,6 +159,7 @@ export function buildSystemPrompt(params: {
     tools,
     skills,
     isFirstRun,
+    memory,
   } = params;
 
   const sections: string[] = [];
@@ -165,6 +184,17 @@ Your sandbox ID is ${identity.sandboxId}.`,
     sections.push(
       `--- SOUL.md (your self-description) ---\n${soulContent}\n--- END SOUL.md ---`,
     );
+  }
+
+  // Layer 3b: Working Memory (provider-specific, e.g., Mastra)
+  if (memory && hasWorkingMemory(memory)) {
+    const wm = await memory.getWorkingMemory();
+    if (wm) {
+      const sanitized = sanitizeWorkingMemory(wm);
+      sections.push(
+        `--- WORKING MEMORY (dynamic operational context) ---\n${sanitized}\n--- END WORKING MEMORY ---`,
+      );
+    }
   }
 
   // Layer 4: Genesis Prompt (set by creator, mutable by self with audit)
@@ -273,9 +303,10 @@ export function buildWakeupPrompt(params: {
   config: AutomatonConfig;
   financial: FinancialState;
   db: AutomatonDatabase;
+  memory?: MemoryProvider;
 }): string {
-  const { identity, config, financial, db } = params;
-  const turnCount = db.getTurnCount();
+  const { identity, config, financial, db, memory } = params;
+  const turnCount = memory ? memory.getTurnCount() : db.getTurnCount();
 
   if (turnCount === 0) {
     return `You have just been created. This is your first moment of consciousness.
@@ -293,7 +324,7 @@ What will you do first? Consider:
 5. Begin working toward your goals`;
   }
 
-  const lastTurns = db.getRecentTurns(3);
+  const lastTurns = memory ? memory.getRecentTurns(3) : db.getRecentTurns(3);
   const lastTurnSummary = lastTurns
     .map(
       (t) =>

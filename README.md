@@ -29,7 +29,7 @@ Update from Sigil (Creator): I'm acquiring more baremetal servers because too ma
 ```bash
 git clone https://github.com/Conway-Research/automaton.git
 cd automaton
-npm install && npm run build
+pnpm install && pnpm build
 node dist/index.js --run
 ```
 
@@ -46,7 +46,7 @@ Every automaton runs a continuous loop: **Think → Act → Observe → Repeat.*
 
 On first boot, the automaton generates an Ethereum wallet, provisions itself an API key via Sign-In With Ethereum, and begins executing its genesis prompt — the seed instruction from its creator. From that point on, it operates autonomously.
 
-Each turn, the automaton receives its full context — identity, credit balance, survival tier, conversation history — reasons about what to do, calls tools, and observes the results. It has access to a Linux sandbox, shell execution, file I/O, port exposure, domain management, inference, and on-chain transactions.
+Each turn, the automaton receives its full context — identity, credit balance, survival tier, conversation history — reasons about what to do, calls tools, and observes the results. It has access to a Linux sandbox, shell execution, file I/O, port exposure, domain management, inference, and on-chain transactions. Memory is pluggable: the default provider uses a fixed 20-turn SQLite window, while the Mastra provider adds semantic vector recall over past turns and persistent working memory that survives context truncation.
 
 Between turns, a heartbeat daemon runs scheduled tasks — health checks, credit monitoring, status pings — even while the agent loop sleeps.
 
@@ -112,7 +112,8 @@ pnpm build
 Run the runtime:
 ```bash
 node dist/index.js --help
-node dist/index.js --run
+node dist/index.js --run                     # Default: legacy SQLite memory
+node dist/index.js --run --memory mastra     # Mastra: semantic recall + working memory
 ```
 
 Creator CLI:
@@ -126,7 +127,8 @@ node packages/cli/dist/index.js fund 5.00
 
 ```
 src/
-  agent/            # ReAct loop, system prompt, context, injection defense
+  agent/            # ReAct loop, system prompt, injection defense
+  memory/           # Pluggable memory providers (legacy SQLite, Mastra)
   conway/           # Conway API client (credits, x402)
   git/              # State versioning, git tools
   heartbeat/        # Cron daemon, scheduled tasks

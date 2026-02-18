@@ -24,6 +24,7 @@ import type {
   AutomatonConfig,
   SocialClientInterface,
   InboxMessage,
+  AgentTurn,
 } from "../types.js";
 import { DEFAULT_CONFIG } from "../types.js";
 import path from "path";
@@ -275,6 +276,21 @@ export function createTestConfig(
     skillsDir: "/tmp/test-skills",
     maxChildren: 3,
     socialRelayUrl: "https://social.conway.tech",
+    ...overrides,
+  };
+}
+
+export function createTestTurn(overrides?: Partial<AgentTurn>): AgentTurn {
+  return {
+    id: `turn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    timestamp: new Date().toISOString(),
+    state: "running",
+    input: "test input",
+    inputSource: "system",
+    thinking: "test thinking",
+    toolCalls: [],
+    tokenUsage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+    costCents: 0.01,
     ...overrides,
   };
 }
