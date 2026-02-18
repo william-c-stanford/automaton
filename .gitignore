@@ -9,3 +9,6 @@ dist/
 *.tgz
 .automaton/wallet.json
 .automaton/state.db
+memory.db
+vector-memory.db
+plans/*

@@ -22,6 +22,7 @@ import { runAgentLoop } from "./agent/loop.js";
 import { loadSkills } from "./skills/loader.js";
 import { initStateRepo } from "./git/state-versioning.js";
 import { createSocialClient } from "./social/client.js";
+import { createMemoryProvider } from "./memory/registry.js";
 import type { AutomatonIdentity, AgentState, Skill, SocialClientInterface } from "./types.js";
 
 const VERSION = "0.1.0";
@@ -43,6 +44,7 @@ Sovereign AI Agent Runtime
 
 Usage:
   automaton --run          Start the automaton (first run triggers setup wizard)
+  automaton --run --memory <provider>  Use a specific memory provider (default: legacy)
   automaton --setup        Re-run the interactive setup wizard
   automaton --init         Initialize wallet and config directory
   automaton --provision    Provision Conway API key via SIWE
@@ -179,6 +181,17 @@ async function run(): Promise<void> {
   const dbPath = resolvePath(config.dbPath);
   const db = createDatabase(dbPath);
 
+  // Initialize memory provider
+  const cliArgs = process.argv.slice(2);
+  const memoryIdx = cliArgs.indexOf("--memory");
+  const memoryProviderName =
+    memoryIdx >= 0 && cliArgs[memoryIdx + 1] ? cliArgs[memoryIdx + 1] : "legacy";
+  const memoryProvider = createMemoryProvider(memoryProviderName, config, db);
+  await memoryProvider.init();
+  console.log(
+    `[${new Date().toISOString()}] Memory provider: ${memoryProvider.name}`,
+  );
+
   // Store identity in DB
   db.setIdentity("name", config.name);
   db.setIdentity("address", account.address);
@@ -252,6 +265,7 @@ async function run(): Promise<void> {
   const shutdown = () => {
     console.log(`[${new Date().toISOString()}] Shutting down...`);
     heartbeat.stop();
+    memoryProvider.close();
     db.setAgentState("sleeping");
     db.close();
     process.exit(0);
@@ -278,6 +292,7 @@ async function run(): Promise<void> {
         db,
         conway,
         inference,
+        memory: memoryProvider,
         social,
         skills,
         onStateChange: (state: AgentState) => {

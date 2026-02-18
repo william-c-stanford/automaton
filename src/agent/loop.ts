@@ -17,11 +17,12 @@ import type {
   FinancialState,
   ToolContext,
   AutomatonTool,
+  ChatMessage,
   Skill,
   SocialClientInterface,
 } from "../types.js";
+import type { MemoryProvider } from "../memory/provider.js";
 import { buildSystemPrompt, buildWakeupPrompt } from "./system-prompt.js";
-import { buildContextMessages, trimContext } from "./context.js";
 import {
   createBuiltinTools,
   toolsToInferenceFormat,
@@ -40,6 +41,7 @@ export interface AgentLoopOptions {
   db: AutomatonDatabase;
   conway: ConwayClient;
   inference: InferenceClient;
+  memory: MemoryProvider;
   social?: SocialClientInterface;
   skills?: Skill[];
   onStateChange?: (state: AgentState) => void;
@@ -53,7 +55,7 @@ export interface AgentLoopOptions {
 export async function runAgentLoop(
   options: AgentLoopOptions,
 ): Promise<void> {
-  const { identity, config, db, conway, inference, social, skills, onStateChange, onTurnComplete } =
+  const { identity, config, db, conway, inference, memory, social, skills, onStateChange, onTurnComplete } =
     options;
 
   const tools = createBuiltinTools(identity.sandboxId);
@@ -81,8 +83,11 @@ export async function runAgentLoop(
   // Get financial state
   let financial = await getFinancialState(conway, identity.address);
 
+  // Signal wake to memory provider
+  await memory.onWake(identity);
+
   // Check if this is the first run
-  const isFirstRun = db.getTurnCount() === 0;
+  const isFirstRun = memory.getTurnCount() === 0;
 
   // Build wakeup prompt
   const wakeupInput = buildWakeupPrompt({
@@ -90,6 +95,7 @@ export async function runAgentLoop(
     config,
     financial,
     db,
+    memory,
   });
 
   // Transition to running
@@ -160,8 +166,7 @@ export async function runAgentLoop(
       }
 
       // Build context
-      const recentTurns = trimContext(db.getRecentTurns(20));
-      const systemPrompt = buildSystemPrompt({
+      const systemPrompt = await buildSystemPrompt({
         identity,
         config,
         financial,
@@ -170,13 +175,20 @@ export async function runAgentLoop(
         tools,
         skills,
         isFirstRun,
+        memory,
       });
 
-      const messages = buildContextMessages(
-        systemPrompt,
-        recentTurns,
-        pendingInput,
-      );
+      const contextMessages = await memory.recall(pendingInput?.content);
+      const messages: ChatMessage[] = [
+        { role: "system", content: systemPrompt },
+        ...contextMessages,
+      ];
+      if (pendingInput) {
+        messages.push({
+          role: "user",
+          content: `[${pendingInput.source}] ${pendingInput.content}`,
+        });
+      }
 
       // Capture input before clearing
       const currentInput = pendingInput;
@@ -244,10 +256,13 @@ export async function runAgentLoop(
       }
 
       // ── Persist Turn ──
+      // Always persist to operational DB for CLI compatibility (status, logs)
       db.insertTurn(turn);
       for (const tc of turn.toolCalls) {
         db.insertToolCall(turn.id, tc);
       }
+      // Also persist to memory provider (may use different storage)
+      await memory.saveTurn(turn);
       onTurnComplete?.(turn);
 
       // Log the turn
@@ -303,6 +318,7 @@ export async function runAgentLoop(
     }
   }
 
+  await memory.onSleep();
   log(config, `[LOOP END] Agent loop finished. State: ${db.getAgentState()}`);
 }
 
