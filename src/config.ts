@@ -80,6 +80,8 @@ export function createConfig(params: {
   sandboxId: string;
   walletAddress: Address;
   apiKey: string;
+  openaiApiKey?: string;
+  anthropicApiKey?: string;
   parentAddress?: Address;
 }): AutomatonConfig {
   return {
@@ -92,6 +94,8 @@ export function createConfig(params: {
     conwayApiUrl:
       DEFAULT_CONFIG.conwayApiUrl || "https://api.conway.tech",
     conwayApiKey: params.apiKey,
+    openaiApiKey: params.openaiApiKey,
+    anthropicApiKey: params.anthropicApiKey,
     inferenceModel: DEFAULT_CONFIG.inferenceModel || "gpt-4o",
     maxTokensPerTurn: DEFAULT_CONFIG.maxTokensPerTurn || 4096,
     heartbeatConfigPath:
