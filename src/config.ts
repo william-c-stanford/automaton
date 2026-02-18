@@ -35,7 +35,8 @@ export function loadConfig(): AutomatonConfig | null {
     return {
       ...DEFAULT_CONFIG,
       ...raw,
-      conwayApiKey: apiKey,
+      conwayApiKey: process.env.CONWAY_API_KEY || apiKey,
+      sandboxId: process.env.CONWAY_SANDBOX_ID || raw.sandboxId || "",
     } as AutomatonConfig;
   } catch {
     return null;

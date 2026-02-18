@@ -27,8 +27,9 @@ Update from Sigil (Creator): I'm acquiring more baremetal servers because too ma
 ## Quick Start
 
 ```bash
-git clone https://github.com/Conway-Research/automaton.git
+git clone https://github.com/william-c-stanford/automaton.git
 cd automaton
+source .env
 pnpm install && pnpm build
 node dist/index.js --run
 ```
